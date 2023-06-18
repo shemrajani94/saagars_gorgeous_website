@@ -1,0 +1,837 @@
+---
+categories:  
+- ""    #the front matter should be like the one found in, e.g., blog2.md. It cannot be like the normal Rmd we used
+- ""
+date: "`r Sys.Date()`"
+description: Homework 2 # the title that will show up once someone gets to this page
+draft: false
+image: massshootings.jpg # save picture in \static\img\blogs. Acceptable formats= jpg, jpeg, or png . Your iPhone pics wont work
+
+keywords: ""
+slug: hw2 # slug is the shorthand URL address... no spaces plz
+title: Analysis of mass shootings and credit card fraud
+---
+
+---
+title: "Homework 2"
+author: "Saagar Hemrajani"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: flatly
+    highlight: zenburn
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+    code_folding: show
+  pdf_document:
+    toc: yes
+---
+
+------------------------------------------------------------------------
+
+```{r}
+#| label: load-libraries
+#| echo: false # This option disables the printing of code (only output is displayed).
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(wbstats)
+library(skimr)
+library(countrycode)
+library(here)
+library(ggthemes)
+library(scales)
+library(patchwork)
+options(dplyr.summarise.inform = FALSE)
+
+```
+
+# Data Visualisation - Exploration
+
+Now that you've demonstrated your software is setup, and you have the basics of data manipulation, the goal of this assignment is to practice transforming, visualising, and exploring data.
+
+# Mass shootings in the US
+
+In July 2012, in the aftermath of a mass shooting in a movie theater in Aurora, Colorado, [Mother Jones](https://www.motherjones.com/politics/2012/07/mass-shootings-map/) published a report on mass shootings in the United States since 1982. Importantly, they provided the underlying data set as [an open-source database](https://www.motherjones.com/politics/2012/12/mass-shootings-mother-jones-full-data/) for anyone interested in studying and understanding this criminal behavior.
+
+## Obtain the data
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+
+mass_shootings <- read_csv(here::here("content/data", "mass_shootings.csv"))
+
+glimpse(mass_shootings)
+```
+
++----------------------+-----------------------------------------------------------------------------+
+| column(variable)     | description                                                                 |
++======================+=============================================================================+
+| case                 | short name of incident                                                      |
++----------------------+-----------------------------------------------------------------------------+
+| year, month, day     | year, month, day in which the shooting occurred                             |
++----------------------+-----------------------------------------------------------------------------+
+| location             | city and state where the shooting occcurred                                 |
++----------------------+-----------------------------------------------------------------------------+
+| summary              | brief description of the incident                                           |
++----------------------+-----------------------------------------------------------------------------+
+| fatalities           | Number of fatalities in the incident, excluding the shooter                 |
++----------------------+-----------------------------------------------------------------------------+
+| injured              | Number of injured, non-fatal victims in the incident, excluding the shooter |
++----------------------+-----------------------------------------------------------------------------+
+| total_victims        | number of total victims in the incident, excluding the shooter              |
++----------------------+-----------------------------------------------------------------------------+
+| location_type        | generic location in which the shooting took place                           |
++----------------------+-----------------------------------------------------------------------------+
+| male                 | logical value, indicating whether the shooter was male                      |
++----------------------+-----------------------------------------------------------------------------+
+| age_of_shooter       | age of the shooter when the incident occured                                |
++----------------------+-----------------------------------------------------------------------------+
+| race                 | race of the shooter                                                         |
++----------------------+-----------------------------------------------------------------------------+
+| prior_mental_illness | did the shooter show evidence of mental illness prior to the incident?      |
++----------------------+-----------------------------------------------------------------------------+
+
+## Explore the data
+
+### Specific questions
+
+-   Generate a data frame that summarizes the number of mass shootings per year.
+
+```{r}
+mass_shootings %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  arrange(count)
+```
+
+-   Generate a bar chart that identifies the number of mass shooters associated with each race category. The bars should be sorted from highest to lowest and each bar should show its number.
+
+```{r}
+mass_shootings %>%
+  mutate(race = ifelse(is.na(race), "Unknown", race)) %>% 
+  filter(!is.na(race)) %>% 
+  group_by(race) %>% 
+  summarise(race_count = n()) %>% 
+  mutate(race = fct_rev(fct_reorder(race, race_count, max))) %>%
+  ggplot(aes(x =race, y=race_count))+
+  geom_bar(position = 'dodge', stat='identity')+
+  theme_minimal(base_size=6) +
+  geom_text(aes(label=race_count), position=position_dodge(width=0.9), vjust=-0.25) +
+  labs(x = "Race") +
+  ggtitle("Mass shooters in the US are predominantly white") +
+  ggthemes::theme_economist()
+
+  
+```
+
+-   Generate a boxplot visualizing the number of total victims, by type of location.
+
+```{r}
+mass_shootings %>%
+  ggplot(aes(x = location_type, y = total_victims)) +
+  geom_boxplot() +
+  labs(x = "Location Type", y = "Total Victim Count") +
+  ggtitle("Most Mass Shootings have between 5-30 victims")
+
+
+```
+
+-   Redraw the same plot, but remove the Las Vegas Strip massacre from the dataset.
+
+```{r}
+mass_shootings %>%
+  filter(case != 'Las Vegas Strip massacre') %>% 
+  ggplot(aes(x = location_type, y = total_victims)) +
+  geom_boxplot() +
+  labs(x = "Location Type", y = "Total Victim Count") +
+  ggtitle("Most Mass Shootings have between 5-30 victims")
+
+```
+
+### More open-ended questions
+
+Address the following questions. Generate appropriate figures/tables to support your conclusions.
+
+-   How many white males with prior signs of mental illness initiated a mass shooting after 2000?
+
+```{r}
+mass_shootings %>%
+  mutate(race = ifelse(is.na(race), "Unknown", race)) %>% 
+  mutate(prior_mental_illness = ifelse(is.na(prior_mental_illness), "Unknown", prior_mental_illness)) %>% 
+  filter(male & race == 'White' & year > 2000) %>% 
+  group_by(prior_mental_illness) %>% 
+  summarise(pmi_count = n()) %>% 
+  mutate(prior_mental_illness = fct_rev(fct_reorder(prior_mental_illness, pmi_count, max))) %>%
+  ggplot(aes(x =prior_mental_illness, y=pmi_count))+
+  geom_bar(position = 'dodge', stat='identity')+
+  theme_minimal(base_size=6) +
+  geom_text(aes(label=pmi_count), position=position_dodge(width=0.9), vjust=-0.25) +
+  labs(x = "Prior Mental Illness", y='') +
+  ggtitle("Most White Male Mass-Shooters display signs of prior mental illness") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+```
+
+-   Which month of the year has the most mass shootings? Generate a bar chart sorted in chronological (natural) order (Jan-Feb-Mar- etc) to provide evidence of your answer.
+
+```{r}
+mass_shootings %>%
+  group_by(month) %>% 
+  summarise(month_count = n()) %>% 
+  mutate(month_num = as.numeric(match(month, month.abb))) %>% 
+  mutate(month = fct_reorder(month, month_num, max)) %>%
+  ggplot(aes(x =month, y=month_count))+
+  geom_bar(position = 'dodge', stat='identity')+
+  theme_minimal(base_size=6) +
+  geom_text(aes(label=month_count), position=position_dodge(width=0.9), vjust=-0.25) +
+  labs(x = "Month", y='', subtitle = "Less shooting happen in summer months") +
+  ggtitle('Most shootings happen in Feb, the shortest month') +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+```
+
+-   How does the distribution of mass shooting fatalities differ between White and Black shooters? What about White and Latino shooters?
+
+```{r}
+mass_shootings %>% 
+  filter(race %in% c('White', 'Black')) %>%
+  ggplot(aes(x = fatalities, fill = race)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(values = c("blue", "red"),
+                  guide = guide_legend(override.aes = list(alpha = 1))) +
+  labs(x = "Fatalities", y='Freqiency', subtitle = "") +
+  ggtitle('Shootings perpretrated by black mass shooters tend to have fewer fatalities') +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 10))  # Adjust the size value as needed
+
+mass_shootings %>% 
+  filter(race %in% c('White', 'Latino')) %>%
+  ggplot(aes(x = fatalities, fill = race)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(values = c("blue", "green"),
+                  guide = guide_legend(override.aes = list(alpha = 1))) +
+  labs(x = "Fatalities", y='Freqiency', subtitle = "") +
+  ggtitle('Similarly with Latino') +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 10))  # Adjust the size value as needed
+```
+
+### Very open-ended
+
+-   Are mass shootings with shooters suffering from mental illness different from mass shootings with no signs of mental illness in the shooter?
+
+```{r}
+mass_shootings %>%
+  mutate(fatality_ratio = fatalities/total_victims) %>%
+  ggplot(aes(x = prior_mental_illness, y = fatality_ratio)) +
+  geom_boxplot() +
+  labs(title = "Fatality ratios (Fatalities/Total Victims) are more concentrated\namongst those without prior mental illness sign",
+       x = "Prior Mental Illness",
+       y = "Fatality Ratio",
+       subtitle = "Suggests that those without prior mental illness signs\ncould have a more methodological approach to their crime") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+
+
+mass_shootings %>%
+  mutate(race = fct_infreq(race)) %>%
+  group_by(race, prior_mental_illness) %>% 
+  summarise(avg_age = mean(age_of_shooter, na.rm = TRUE)) %>% 
+  ggplot(aes(x = race, y = avg_age, fill = prior_mental_illness)) +
+  geom_tile(stat = "identity", position = "dodge") +
+  labs(title = "For black mass shooters, those with prior mental health\nillness signs tend to be younger than those without",
+       x = "Race",
+       y = "Average Age",
+       subtitle = "White mass shooters tend to be a similar age\nregardless of whether they have had prior mental illness signs") +
+  scale_fill_manual(values = c("blue", "red", "gray"), 
+                    limits = c("Yes", "No", NA),
+                    labels = c("Yes", "No", "Unknown")) +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+```
+
+-   Assess the relationship between mental illness and total victims, mental illness and location type, and the intersection of all three variables.
+
+```{r}
+
+mass_shootings %>%
+  ggplot(aes(x = prior_mental_illness, y = total_victims)) +
+  coord_cartesian(ylim = c(quantile(mass_shootings$total_victims, 0.05), quantile(mass_shootings$total_victims, 0.95))) +
+  geom_boxplot() +
+  labs(title = "Total victims tend to be higher for shooters with\nprior mental illness signs",
+       x = "Prior Mental Illness",
+       y = "Total Victim Count",
+       subtitle = "Total victim count also tends to be more volatile") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+
+
+mass_shootings %>%
+  mutate(location_type = fct_infreq(location_type)) %>%
+  group_by(prior_mental_illness, location_type) %>%
+  summarize(count = n()) %>% 
+  ggplot(aes(x = location_type, y = count, fill = prior_mental_illness)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Workspaces and Schools are common location_types for\n mass shooters with and without mental illness signs",
+       x = "Location Type",
+       y = "Frequency",
+       subtitle = "Mass shooters who chose military, reglious or airports\nall had prior signs of mental illness") +
+  scale_fill_manual(values = c("blue", "red", "gray"), 
+                    limits = c("Yes", "No", NA),
+                    labels = c("Yes", "No", "Unknown")) +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+
+
+
+mass_shootings %>%
+    mutate(location_type = ifelse(is.na(location_type), "Unknown", location_type)) %>% 
+  # Restrict Location Type to only workplace school or other
+  mutate(location_type = case_when(
+    location_type %in% c("Workplace", "School") ~ as.character(location_type),
+    TRUE ~ "Other"
+  )) %>%
+  mutate(location_type = fct_rev(fct_infreq(location_type))) %>%
+  group_by(prior_mental_illness, location_type) %>%
+  summarize(avg_victim_count = median(total_victims, na.rm = TRUE)) %>% 
+  ggplot(aes(x = prior_mental_illness , y = avg_victim_count, fill = location_type)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Mass shootings at schools have the highest median victim counts",
+       x = "Prior Mental Illness",
+       y = "Total Victims (Median)",
+       subtitle = "This trend is more pronounced amongst those with prior mental health illness") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14))  # Adjust the size value as needed
+```
+
+```{=html}
+<span style="color:red">
+<ul>
+  <li>
+    <p>It is clear that those with prior signs of mental illness have a more volatility in total victim and fatality ratios in their shootings. This may be because the crimes are less pre-planned.</p>
+  </li>
+  <li>
+    <p>Workplaces and schools tend to be the most populated locations for mass shooters regardless of their mental health illness status. Interestingly, mass shooters who have committed their crimes in Military or Airport facilities all had prior mental illness signs. This is probably because people working in these in these locations would have to go through more background checks.</p>
+  </li>
+  <li>
+    <p>Despite schools being less common mass shooting locations than workplaces or others, they tend to have a higher median number of total victims. This discrepancy tends to be higher in shooters with prior mental health illness.</p>
+  </li>
+  <li>
+    <p>In general, black mass shooters tend to be older than white mass shooters. For white mass shooters, those with prior mental illness tend to be older than those without. For black and Latino mass shooters, those with prior mental illness tend to be younger</p>
+  </li>
+</ul>
+</span>
+```
+Make sure to provide a couple of sentences of written interpretation of your tables/figures. Graphs and tables alone will not be sufficient to answer this question.
+
+# Exploring credit card fraud
+
+We will be using a dataset with credit card transactions containing legitimate and fraud transactions. Fraud is typically well below 1% of all transactions, so a naive model that predicts that all transactions are legitimate and not fraudulent would have an accuracy of well over 99%-- pretty good, no? (well, not quite as we will see later in the course)
+
+You can read more on credit card fraud on [Credit Card Fraud Detection Using Weighted Support Vector Machine](https://www.scirp.org/journal/paperinformation.aspx?paperid=105944)
+
+The dataset we will use consists of credit card transactions and it includes information about each transaction including customer details, the merchant and category of purchase, and whether or not the transaction was a fraud.
+
+## Obtain the data
+
+The dataset is too large to be hosted on Canvas or Github, so please download it from dropbox <https://www.dropbox.com/sh/q1yk8mmnbbrzavl/AAAxzRtIhag9Nc_hODafGV2ka?dl=0> and save it in your `dsb` repo, under the `data` folder
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+
+card_fraud <- read_csv(here::here("content/data", "card_fraud.csv"))
+
+glimpse(card_fraud)
+```
+
+The data dictionary is as follows
+
+| column(variable)      | description                                 |
+|-----------------------|---------------------------------------------|
+| trans_date_trans_time | Transaction DateTime                        |
+| trans_year            | Transaction year                            |
+| category              | category of merchant                        |
+| amt                   | amount of transaction                       |
+| city                  | City of card holder                         |
+| state                 | State of card holder                        |
+| lat                   | Latitude location of purchase               |
+| long                  | Longitude location of purchase              |
+| city_pop              | card holder's city population               |
+| job                   | job of card holder                          |
+| dob                   | date of birth of card holder                |
+| merch_lat             | Latitude Location of Merchant               |
+| merch_long            | Longitude Location of Merchant              |
+| is_fraud              | Whether Transaction is Fraud (1) or Not (0) |
+
+-   In this dataset, how likely are fraudulent transactions? Generate a table that summarizes the number and frequency of fraudulent transactions per year.
+
+```{r}
+
+card_fraud %>%
+  group_by(trans_year, is_fraud) %>%
+  count() %>%
+  group_by(trans_year) %>% 
+  mutate(Percentage = n / sum(n) * 100) %>%  
+  filter(is_fraud == 1)
+
+## 0.57% were fraud in 2019 (2721 Transactions)
+## 0.63% in 2020 (1215 Transactions)
+```
+
+-   How much money (in US\$ terms) are fraudulent transactions costing the company? Generate a table that summarizes the total amount of legitimate and fraudulent transactions per year and calculate the % of fraudulent transactions, in US\$ terms.
+
+```{r}
+
+card_fraud %>%
+  group_by(trans_year, is_fraud) %>%
+  summarise(total_usd_amt = sum(amt)) %>%
+  group_by(trans_year) %>% 
+  mutate(pct_total_usd_amt = total_usd_amt / sum(total_usd_amt) * 100) %>%  
+  filter(is_fraud == 1)
+
+## In terms of total USD amount, fraudulent transactions represent 
+## a higher proportion of total transactions 4.2% in 2019, 4.8% in 2020
+```
+
+-   Generate a histogram that shows the distribution of amounts charged to credit card, both for legitimate and fraudulent accounts. Also, for both types of transactions, calculate some quick summary statistics.
+
+```{r}
+card_fraud %>% 
+  mutate(is_fraud = ifelse(is_fraud == 1, "Yes", "No")) %>% 
+  ggplot(aes(x = amt, fill = is_fraud)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_manual(values = c("blue", "green"),
+                  guide = guide_legend(override.aes = list(alpha = 1))) +
+  labs(x = "Amount USD", y='Density', subtitle = "") +
+  coord_cartesian(xlim = c(quantile(card_fraud$amt, 0.00), quantile(card_fraud$amt, 0.99))) +
+  ggtitle('Similarly with Latino') +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 10)) +  # Adjust the size value as needed
+  scale_x_continuous(breaks = round(seq(min(card_fraud$amt), quantile(card_fraud$amt, 0.99), length.out = 20), digits = 0)
+)
+```
+
+-   What types of purchases are most likely to be instances of fraud? Consider category of merchants and produce a bar chart that shows % of total fraudulent transactions sorted in order.
+
+```{r}
+num_fraud <- card_fraud %>%
+  filter(is_fraud == 1) %>%
+  count() %>% 
+  pull(n)
+
+card_fraud %>%
+  filter(is_fraud == 1 & !is.na(category)) %>%
+  mutate(category = fct_infreq(category)) %>%
+  group_by(category) %>%
+  summarize(pct_fraud_transactions = n() / num_fraud * 100) %>%  
+  ggplot(aes(x = category, y = pct_fraud_transactions)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Groceries ands Online Shopping are\nthe most common fraudulent transactions categories",
+       x = "",
+       y = "Percentage of Fradulent Transactions",
+       subtitle = "") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85))  # Adjust the size value as needed
+```
+
+-   When is fraud more prevalent? Which days, months, hours? To create new variables to help you in your analysis, we use the `lubridate` package and the following code
+
+```{r}
+
+card_fraud_date <- card_fraud %>% 
+                  mutate(
+                    date_only = lubridate::date(trans_date_trans_time),
+                    month_name = lubridate::month(trans_date_trans_time, label=TRUE),
+                    month_number = month(date(trans_date_trans_time)),
+                    hour = lubridate::hour(trans_date_trans_time),
+                    weekday = lubridate::wday(trans_date_trans_time, label = TRUE),
+                    weekday_num = lubridate::wday(trans_date_trans_time, label = FALSE)
+                    )
+
+card_fraud_date %>%
+  filter(is_fraud == 1 & !is.na(month_name)) %>%
+  mutate(month_name = fct_reorder(month_name, month_number, max)) %>%
+  group_by(month_name, month_number) %>%
+  summarize(pct_fraud_transactions = n() / num_fraud * 100) %>%  
+  ggplot(aes(x = month_name, y = pct_fraud_transactions)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Fraud is more likely to occur in the first half of the year than the second",
+       x = "",
+       y = "Percentage of Fradulent Transactions",
+       subtitle = "With march and may having\nhighest percentage of fraudulent transactions") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85))
+
+
+card_fraud_date %>%
+  filter(is_fraud == 1 & !is.na(hour)) %>%
+  arrange(hour) %>% 
+  group_by(hour) %>%
+  summarize(pct_fraud_transactions = n() / num_fraud * 100) %>%  
+  ggplot(aes(x = hour, y = pct_fraud_transactions)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_x_continuous(breaks = seq(0, 23, by = 1)) +
+  labs(title = "A lot of the fraudulent transactions occur just before midnight\nor in the late hours of the night",
+       x = "Hour",
+       y = "Percentage of Fradulent Transactions",
+       subtitle = "11pm to midnight is the most common time for fraudulent transactions to occur") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(hjust = 0.5, vjust = 0.85))
+
+
+card_fraud_date %>%
+  filter(is_fraud == 1 & !is.na(weekday)) %>%
+  mutate(weekday = fct_reorder(weekday, weekday_num, max)) %>%
+  group_by(weekday, weekday_num) %>%
+  summarize(pct_fraud_transactions = n() / num_fraud * 100) %>%  
+  ggplot(aes(x = weekday, y = pct_fraud_transactions)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "The weekends and monday are the most likely days for fraud",
+       x = "",
+       y = "Percentage of Fradulent Transactions",
+       subtitle = "Wednesday is the least likely day") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85))
+```
+
+-   Are older customers significantly more likely to be victims of credit card fraud? To calculate a customer's age, we use the `lubridate` package and the following code
+
+<!-- -->
+
+      mutate(
+       age = interval(dob, trans_date_trans_time) / years(1),
+        )
+
+```{r}
+card_fraud_dob <- card_fraud %>% 
+                   mutate(
+                  age = interval(dob, trans_date_trans_time) / years(1),)
+
+card_fraud_dob %>%
+  filter(is_fraud == 1) %>%
+  arrange(age) %>% 
+  ggplot(aes(x = age)) +
+  geom_histogram(alpha=0.6, bins=60) +
+  labs(title = "People in their 20s and Late 40s-60s\nare most likely to be victims of fraud",
+       x = "Age",
+       y = "Number of Fradulent Transactions",
+       subtitle = "People in their 30s tend to be most shrewd") +
+  ggthemes::theme_economist() + 
+  theme(plot.title = element_text(size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85)) +
+  scale_x_continuous(breaks = seq(round(min(card_fraud_dob$age), digits=0), round(max(card_fraud_dob$age), digits=0), by = 3))
+```
+
+-   Is fraud related to distance? The distance between a card holder's home and the location of the transaction can be a feature that is related to fraud. To calculate distance, we need the latidue/longitude of card holders's home and the latitude/longitude of the transaction, and we will use the [Haversine formula](https://en.wikipedia.org/wiki/Haversine_formula) to calculate distance. I adapted code to [calculate distance between two points on earth](https://www.geeksforgeeks.org/program-distance-two-points-earth/amp/) which you can find below
+
+```{r}
+# distance between card holder's home and transaction
+# code adapted from https://www.geeksforgeeks.org/program-distance-two-points-earth/amp/
+
+
+card_fraud <- card_fraud %>%
+  mutate(
+    
+    # convert latitude/longitude to radians
+    lat1_radians = lat / 57.29577951,
+    lat2_radians = merch_lat / 57.29577951,
+    long1_radians = long / 57.29577951,
+    long2_radians = merch_long / 57.29577951,
+    
+    # calculate distance in miles
+    distance_miles = 3963.0 * acos((sin(lat1_radians) * sin(lat2_radians)) + cos(lat1_radians) * cos(lat2_radians) * cos(long2_radians - long1_radians)),
+
+    # calculate distance in km
+    distance_km = 6377.830272 * acos((sin(lat1_radians) * sin(lat2_radians)) + cos(lat1_radians) * cos(lat2_radians) * cos(long2_radians - long1_radians))
+
+  )
+
+
+card_fraud %>%
+  mutate(is_fraud = ifelse(is_fraud == 1, "Yes", "No")) %>% 
+  ggplot(aes(x = is_fraud, y = distance_miles)) +
+  geom_boxplot() +
+  labs(x = "Is Fraud", y = "Distance (Miles)") +
+  labs(title = "There doesnt see to be much distinction between\ntransaction distances between fraud and non fraudulent transaction",
+     x = "Age",
+     y = "Number of Fradulent Transactions",
+     subtitle = "This means that most fradulent transactions\nare made the same distanes away from the cardholders home")
+
+```
+
+Plot a boxplot or a violin plot that looks at the relationship of distance and `is_fraud`. Does distance seem to be a useful feature in explaining fraud?
+
+# Exploring sources of electricity production, CO2 emissions, and GDP per capita.
+
+```{r}
+#| message: false
+#| warning: false
+
+# Download electricity data
+url <- "https://nyc3.digitaloceanspaces.com/owid-public/data/energy/owid-energy-data.csv"
+
+energy <- read_csv(url) %>% 
+  filter(year >= 1990) %>% 
+  drop_na(iso_code) %>% 
+  select(1:3,
+         biofuel = biofuel_electricity,
+         coal = coal_electricity,
+         gas = gas_electricity,
+         hydro = hydro_electricity,
+         nuclear = nuclear_electricity,
+         oil = oil_electricity,
+         other_renewable = other_renewable_exc_biofuel_electricity,
+         solar = solar_electricity,
+         wind = wind_electricity, 
+         electricity_demand,
+         electricity_generation,
+         net_elec_imports,	# Net electricity imports, measured in terawatt-hours
+         energy_per_capita,	# Primary energy consumption per capita, measured in kilowatt-hours	Calculated by Our World in Data based on BP Statistical Review of World Energy and EIA International Energy Data
+         energy_per_gdp,	# Energy consumption per unit of GDP. This is measured in kilowatt-hours per 2011 international-$.
+         per_capita_electricity, #	Electricity generation per capita, measured in kilowatt-hours
+  ) 
+
+# Download data for C02 emissions per capita https://data.worldbank.org/indicator/EN.ATM.CO2E.PC
+co2_percap <- wb_data(country = "countries_only", 
+                      indicator = "EN.ATM.CO2E.PC", 
+                      start_date = 1990, 
+                      end_date = 2022,
+                      return_wide=FALSE) %>% 
+  filter(!is.na(value)) %>% 
+  #drop unwanted variables
+  select(-c(unit, obs_status, footnote, last_updated)) %>% 
+  rename(year = date,
+         co2percap = value)
+
+
+# Download data for GDP per capita  https://data.worldbank.org/indicator/NY.GDP.PCAP.PP.KD
+gdp_percap <- wb_data(country = "countries_only", 
+                      indicator = "NY.GDP.PCAP.PP.KD", 
+                      start_date = 1990, 
+                      end_date = 2022,
+                      return_wide=FALSE) %>% 
+  filter(!is.na(value)) %>% 
+  #drop unwanted variables
+  select(-c(unit, obs_status, footnote, last_updated)) %>% 
+  rename(year = date,
+         GDPpercap = value)
+```
+
+There are many sources of data on how countries generate their electricity and their CO2 emissions. I would like you to create three graphs:
+
+## 1. A stacked area chart that shows how your own country generated its electricity since 2000.
+
+```{r}
+#| message: false
+#| warning: false
+
+energy %>% 
+  filter(country == 'Netherlands' & year >= 2000) %>% 
+  pivot_longer(cols = biofuel:wind, names_to = "fuel", values_to = "twh_generation") %>% 
+  select(c('country', 'year','fuel', 'twh_generation')) %>% 
+  mutate(twh_generation = ifelse(is.na(twh_generation), 0.0, twh_generation)) %>% 
+  ggplot(aes(x = year, y = twh_generation, fill = fuel)) +
+  geom_area(colour="grey90", alpha = 0.6, position = "fill") +
+  labs(x = "Year", y = "Percentage Generation", fill = "Fuel", 
+       title='Wind generation in Netherlands has accelerated since 2015',
+       subtitle='However, gas is still the main source of electricity generation') +
+  scale_fill_discrete(guide = guide_legend(reverse = TRUE)) +
+  scale_y_continuous(labels = scales::percent)
+
+
+```
+
+## 2. A scatter plot that looks at how CO2 per capita and GDP per capita are related
+
+```{r}
+#| message: false
+#| warning: false
+
+correlation_co2_gdp_by_yr <- co2_percap %>% 
+  inner_join(gdp_percap, by=c('iso2c','iso3c', 'country', 'year')) %>% 
+  select(c('iso2c','iso3c', 'country', 'year','GDPpercap', 'co2percap')) %>% 
+  filter(year >= 2000) %>% 
+  group_by(year) %>% 
+  summarize(correlation = round(cor(GDPpercap, co2percap),2))
+
+
+co2_percap %>% 
+  inner_join(gdp_percap, by=c('iso2c','iso3c', 'country', 'year')) %>% 
+  select(c('iso2c','iso3c', 'country', 'year','GDPpercap', 'co2percap')) %>% 
+  filter(year >= 2000) %>% 
+  ggplot(aes(x = GDPpercap, y = co2percap)) +
+  geom_point() +
+  facet_wrap(~ year, ncol = 5) +
+  labs(x = "GDP per capita", y = "CO2 per capita",
+       title = "Global Correlation Co2 per Capita and GDP per Capita (by year)") +
+  theme_bw() +
+  theme(panel.spacing = unit(0.5, "lines")) +
+  geom_smooth(formula = y ~ x, method = "lm", se = FALSE, show.legend= FALSE) +
+  geom_text(
+    aes(label = paste0("Correlation: ", sprintf("%.2f", round(correlation, 2)))), data = correlation_co2_gdp_by_yr,
+    x = Inf, y = Inf,
+    hjust = 1, vjust = 1,
+    size = 3
+  )
+
+
+# There is definitely a positive correlation between GDP and C02 per capita. 
+# However, this correlation has weakend over time. Since 2014, the correlation has been weaker than 0.8
+```
+
+## 3. A scatter plot that looks at how electricity usage (kWh) per capita/day GDP per capita are related
+
+```{r}
+#| message: false
+#| warning: false
+
+correlation_elec_gdp_by_yr <- energy %>% 
+  mutate(iso3c = iso_code) %>% 
+  inner_join(gdp_percap, by=c('iso3c', 'year')) %>% 
+  select(c('iso3c', 'year','GDPpercap', 'per_capita_electricity')) %>% 
+  filter(year >= 2000) %>% 
+  group_by(year) %>% 
+  summarize(correlation = round(cor(GDPpercap, per_capita_electricity, use = "complete.obs"),2))
+
+
+energy %>% 
+  mutate(iso3c = iso_code) %>% 
+  inner_join(gdp_percap, by=c('iso3c', 'year')) %>% 
+  select(c('iso3c', 'year','GDPpercap', 'per_capita_electricity')) %>% 
+  filter(year >= 2000) %>% 
+  left_join(distinct(gdp_percap, iso3c, country, .keep_all = FALSE), by='iso3c') %>% 
+  ggplot(aes(x = GDPpercap, y = per_capita_electricity)) +
+  geom_point() +
+  facet_wrap(~ year, ncol = 5) +
+  labs(x = "GDP per capita", y = "electricity usage (kWh) per capita/day",
+       title = "Global Correlation Electricity xUsage and GDP per Capita (by year)") +
+  theme_bw() +
+  theme(panel.spacing = unit(0.5, "lines")) +
+  geom_smooth(formula = y ~ x, method = "lm", se = FALSE, show.legend= FALSE) +
+  geom_text(
+    aes(label = paste0("Correlation: ", sprintf("%.2f", round(correlation, 2)))), data = correlation_elec_gdp_by_yr,
+    x = Inf, y = Inf,
+    hjust = 1, vjust = 1,
+    size = 3
+  ) 
+
+## Electricity consumption per capita and GDP per capita are also positively correlated
+## However, the positive correlation is less strong than GDP and C02
+## Similar to the correlation between GDP and C02, the correlation between gdp and electricity consumption has reduced over time
+## This demonstrates how the largest economies have shifted from manufaturing to technology and services, which are less electricity intensive
+
+```
+
+3.  Write a function that takes as input any country's name and returns all three graphs. You can use the `patchwork` package to arrange the three graphs as shown below
+
+
+```{r}
+#| message: false
+#| warning: false
+
+library(patchwork)
+
+selected_country <- "Netherlands"
+
+generate_and_export_plots <- function(selected_country) {
+  
+  stacked_area_plot <- energy %>% 
+  filter(country == selected_country & year >= 2000) %>% 
+  pivot_longer(cols = biofuel:wind, names_to = "fuel", values_to = "twh_generation") %>% 
+  select(c('country', 'year','fuel', 'twh_generation')) %>% 
+  mutate(twh_generation = ifelse(is.na(twh_generation), 0.0, twh_generation)) %>% 
+  ggplot(aes(x = year, y = twh_generation, fill = fuel)) +
+  geom_area(colour="grey90", alpha = 0.6, position = "fill") +
+  labs(x = "Year", y = "Percentage Generation", fill = "Fuel", 
+       title='Wind generation in Netherlands has accelerated since 2015',
+       subtitle='However, gas is still the main source of electricity generation') +
+  scale_fill_discrete(guide = guide_legend(reverse = TRUE)) +
+  scale_y_continuous(labels = scales::percent)
+
+  
+  
+  gdp_kwh_df <- energy %>% 
+    mutate(iso3c = iso_code) %>% 
+    inner_join(gdp_percap, by=c('iso3c', 'year')) %>% 
+    select(c('iso3c', 'year','GDPpercap', 'per_capita_electricity')) %>% 
+    filter(year >= 2000) %>% 
+    left_join(distinct(gdp_percap, iso3c, country, .keep_all = FALSE), by='iso3c') %>% 
+    filter(country == selected_country) %>% 
+    mutate(year = as.factor(year))
+
+  
+  scatter_1 <- gdp_kwh_df %>% 
+    ggplot(aes(x = GDPpercap, y = per_capita_electricity, color=year)) +
+    geom_point() +
+    labs(x = "GDP per capita", y = "electricity usage (kWh) per capita/day",
+         title = sprintf("Relationshp between Electricity Usage and GDP per capita for\n%s ", selected_country)) +
+    theme_bw() +
+    geom_smooth(formula = y ~ x, method = "lm", se = FALSE, show.legend= FALSE) +
+    geom_text(
+      aes(label = paste0("Correlation: ", round(cor(GDPpercap, per_capita_electricity), 2))),
+      x = Inf, y = Inf,
+      hjust = 1, vjust = 1,
+      size = 5
+    ) +
+    theme(plot.title = element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85))
+  
+  
+  co2_gdp_df <- co2_percap %>% 
+    inner_join(gdp_percap, by=c('iso2c','iso3c', 'country', 'year')) %>% 
+    select(c('iso2c','iso3c', 'country', 'year','GDPpercap', 'co2percap')) %>% 
+    filter(year >= 2000 & country == selected_country) %>% 
+    mutate(year = as.factor(year))
+
+
+  scatter_2 <- co2_gdp_df %>% 
+    ggplot(aes(x = GDPpercap, y = co2percap, color=year)) +
+    geom_point() +
+    labs(x = "GDP per capita", y = "CO2 per capita",
+         title = sprintf("Relationship between CO2 and GDP per capita for\n%s ", selected_country)) +
+    theme_bw() +
+    geom_smooth(formula = y ~ x, method = "lm", se = FALSE, show.legend= FALSE) +
+    geom_text(
+      aes(label = paste0("Correlation: ", round(cor(GDPpercap, co2percap), 2))),
+      x = Inf, y = Inf,
+      hjust = 1, vjust = 1,
+      size = 3
+    ) +
+    theme(plot.title = element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 0.85))
+
+  # Export the plots to PNG files with dynamic names
+  filename1 <- paste0("images/plot1_", selected_country, ".png")
+  filename2 <- paste0("images/plot2_", selected_country, ".png")
+  filename3 <- paste0("images/plot3_", selected_country, ".png")
+
+  ggsave(filename1, stacked_area_plot, width = 6, height = 4, dpi = 300)
+  ggsave(filename2, scatter_1, width = 6, height = 4, dpi = 300)
+  ggsave(filename3, scatter_2, width = 6, height = 4, dpi = 300)
+  
+  # Store the plots in a list
+  plot_list <- list(stacked_area_plot, scatter_1, scatter_2)
+
+  # Return the list of plots
+  return(plot_list)
+}
+
+my_plots <- generate_and_export_plots(selected_country) 
+my_plots[[1]]/ (my_plots[[2]] + my_plots[[3]])
+```
+
+# Details
+
+-   Approximately how much time did you spend on this problem set: 8 hours, it took a long time

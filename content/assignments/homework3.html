@@ -1,0 +1,476 @@
+---
+categories:  
+- ""    #the front matter should be like the one found in, e.g., blog2.md. It cannot be like the normal Rmd we used
+- ""
+date: "2023-06-18"
+description: Homework 3 # the title that will show up once someone gets to this page
+draft: false
+image: webscraping.jpg # save picture in \static\img\blogs. Acceptable formats= jpg, jpeg, or png . Your iPhone pics wont work
+
+keywords: ""
+slug: hw3 # slug is the shorthand URL address... no spaces plz
+title: Using DBplyr and Web Scraping
+---
+
+
+
+<div id="money-in-uk-politics" class="section level1">
+<h1>Money in UK politics</h1>
+<p><a href="https://news.sky.com/story/the-westminster-accounts-12786091">The Westminster Accounts</a>, a recent collaboration between Sky News and Tortoise Media, examines the flow of money through UK politics. It does so by combining data from three key sources:</p>
+<ol style="list-style-type: decimal">
+<li><a href="https://www.parliament.uk/mps-lords-and-offices/standards-and-financial-interests/parliamentary-commissioner-for-standards/registers-of-interests/register-of-members-financial-interests/">Register of Members’ Financial Interests</a>,</li>
+<li><a href="http://search.electoralcommission.org.uk/English/Search/Donations">Electoral Commission records of donations to parties</a>, and</li>
+<li><a href="https://www.parliament.uk/mps-lords-and-offices/standards-and-financial-interests/parliamentary-commissioner-for-standards/registers-of-interests/register-of-all-party-party-parliamentary-groups/">Register of All-Party Parliamentary Groups</a>.</li>
+</ol>
+<p>You can <a href="https://news.sky.com/story/westminster-accounts-search-for-your-mp-or-enter-your-full-postcode-12771627">search and explore the results</a> through the collaboration’s interactive database. Simon Willison <a href="https://til.simonwillison.net/shot-scraper/scraping-flourish">has extracted a database</a> and this is what we will be working with. If you want to read more about <a href="https://www.tortoisemedia.com/2023/01/08/the-westminster-accounts-methodology/">the project’s methodology</a>.</p>
+<div id="open-a-connection-to-the-database" class="section level2">
+<h2>Open a connection to the database</h2>
+<p>The database made available by Simon Willison is an <code>SQLite</code> database</p>
+<pre class="r"><code>sky_westminster &lt;- DBI::dbConnect(
+  drv = RSQLite::SQLite(),
+  dbname = here::here(&quot;content/data&quot;, &quot;sky-westminster-files.db&quot;)
+)</code></pre>
+<p>How many tables does the database have?</p>
+<pre class="r"><code>westminster_tbls &lt;- DBI::dbListTables(sky_westminster)
+
+minister_db &lt;- setNames(
+  lapply(westminster_tbls, function(table) {
+      dplyr::tbl(sky_westminster, table)
+    }),
+  westminster_tbls
+)</code></pre>
+</div>
+<div id="which-mp-has-received-the-most-amount-of-money" class="section level2">
+<h2>Which MP has received the most amount of money?</h2>
+<p>You need to work with the <code>payments</code> and <code>members</code> tables and for now we just want the total among all years. To insert a new, blank chunk of code where you can write your beautiful code (and comments!), please use the following shortcut: <code>Ctrl + Alt + I</code> (Windows) or <code>cmd + option + I</code> (mac)</p>
+<pre class="r"><code>max_donations &lt;- minister_db$payments %&gt;% 
+  left_join(minister_db$members, by = c(&quot;member_id&quot; = &quot;id&quot;)) %&gt;% 
+  group_by(name) %&gt;% 
+  summarize(sum_donations = sum(value)) %&gt;% 
+  arrange(desc(sum_donations)) %&gt;% 
+  slice_max(sum_donations)
+
+collect(max_donations)</code></pre>
+<pre><code>## Warning: Missing values are always removed in SQL aggregation functions.
+## Use `na.rm = TRUE` to silence this warning
+## This warning is displayed once every 8 hours.</code></pre>
+<pre><code>## Warning: ORDER BY is ignored in subqueries without LIMIT
+## ℹ Do you need to move arrange() later in the pipeline or use window_order() instead?</code></pre>
+<pre><code>## # A tibble: 1 × 2
+##   name        sum_donations
+##   &lt;chr&gt;               &lt;dbl&gt;
+## 1 Theresa May      2809765.</code></pre>
+</div>
+<div id="any-entity-that-accounts-for-more-than-5-of-all-donations" class="section level2">
+<h2>Any <code>entity</code> that accounts for more than 5% of all donations?</h2>
+<p>Is there any <code>entity</code> whose donations account for more than 5% of the total payments given to MPs over the 2020-2022 interval? Who are they and who did they give money to?</p>
+<pre class="r"><code>minister_db$payments</code></pre>
+<pre><code>## # Source:   table&lt;payments&gt; [?? x 13]
+## # Database: sqlite 3.41.2 [C:\Users\saaga\Dropbox\Saagar@LBS\2023_Summer\DSForBusiness\saagars_gorgeous_website\content\data\sky-westminster-files.db]
+##    category                 category_name charity date  date_visited description
+##    &lt;chr&gt;                    &lt;chr&gt;         &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;        &lt;chr&gt;      
+##  1 4. Visits outside the UK Gifts and ot… &quot;&quot;      Regi… &quot;Dates of v… Internatio…
+##  2 2. (b) Any other suppor… Cash donatio… &quot;&quot;      Regi… &quot;&quot;           Use of a h…
+##  3 4. Visits outside the UK Gifts and ot… &quot;&quot;      Regi… &quot;Dates of v… Flights £1…
+##  4 2. (a) Support linked t… Cash donatio… &quot;&quot;      Regi… &quot;&quot;           2000       
+##  5 3. Gifts, benefits and … Gifts and ot… &quot;&quot;      Regi… &quot;&quot;           Two box ti…
+##  6 2. (b) Any other suppor… Cash donatio… &quot;&quot;      Regi… &quot;&quot;           1800       
+##  7 2. (b) Any other suppor… Cash donatio… &quot;&quot;      Regi… &quot;&quot;           10000      
+##  8 4. Visits outside the UK Gifts and ot… &quot;&quot;      Regi… &quot;Dates of v… Flights an…
+##  9 5. Gifts and benefits f… Gifts and ot… &quot;&quot;      Regi… &quot;&quot;           Guest at Q…
+## 10 4. Visits outside the UK Gifts and ot… &quot;&quot;      Regi… &quot;Dates of v… Flights, a…
+## # ℹ more rows
+## # ℹ 7 more variables: destination_of_visit &lt;chr&gt;, entity &lt;chr&gt;, hours &lt;chr&gt;,
+## #   id &lt;chr&gt;, member_id &lt;chr&gt;, purpose_of_visit &lt;chr&gt;, value &lt;dbl&gt;</code></pre>
+<pre class="r"><code>total_payments_sum &lt;- minister_db$payments %&gt;%
+  filter(str_sub(date, start = -4) %in% c(&#39;2020&#39;,&#39;2021&#39;,&#39;2022&#39;)) %&gt;% 
+  summarise(tot = sum(value, na.rm = TRUE)) %&gt;% 
+  pull(tot)
+
+minister_db$payments %&gt;% 
+  filter(str_sub(date, start = -4) %in% c(&#39;2020&#39;,&#39;2021&#39;,&#39;2022&#39;)) %&gt;% 
+  group_by(entity) %&gt;%
+  summarize(pct_donation = sum(value) / total_payments_sum *100) %&gt;% 
+  filter(pct_donation &gt; 5) %&gt;% 
+  arrange(desc(pct_donation))</code></pre>
+<pre><code>## # Source:     SQL [1 x 2]
+## # Database:   sqlite 3.41.2 [C:\Users\saaga\Dropbox\Saagar@LBS\2023_Summer\DSForBusiness\saagars_gorgeous_website\content\data\sky-westminster-files.db]
+## # Ordered by: desc(pct_donation)
+##   entity      pct_donation
+##   &lt;chr&gt;              &lt;dbl&gt;
+## 1 Withers LLP         5.34</code></pre>
+</div>
+<div id="do-entity-donors-give-to-a-single-party-or-not" class="section level2">
+<h2>Do <code>entity</code> donors give to a single party or not?</h2>
+<ul>
+<li>How many distinct entities who paid money to MPS are there?</li>
+</ul>
+<pre class="r"><code>minister_db$payments %&gt;% 
+  summarize(distinct_entities = n_distinct(entity))</code></pre>
+<pre><code>## # Source:   SQL [1 x 1]
+## # Database: sqlite 3.41.2 [C:\Users\saaga\Dropbox\Saagar@LBS\2023_Summer\DSForBusiness\saagars_gorgeous_website\content\data\sky-westminster-files.db]
+##   distinct_entities
+##               &lt;int&gt;
+## 1              2213</code></pre>
+<ul>
+<li>How many (as a number and %) donated to MPs belonging to a single party only?</li>
+</ul>
+<pre class="r"><code>donation_counts &lt;- minister_db$payments %&gt;% 
+  left_join(minister_db$members, by = c(&quot;member_id&quot; = &quot;id&quot;)) %&gt;% 
+  group_by(entity) %&gt;% 
+  summarize(distinct_parties = n_distinct(party_id))
+
+donation_counts_df &lt;- collect(donation_counts)
+
+
+donation_counts_df %&gt;% 
+  group_by(distinct_parties) %&gt;% 
+  summarize(count = sum(distinct_parties), pct = sum(distinct_parties)/nrow(donation_counts_df) *100)</code></pre>
+<pre><code>## # A tibble: 7 × 3
+##   distinct_parties count    pct
+##              &lt;int&gt; &lt;int&gt;  &lt;dbl&gt;
+## 1                1  2036 92.0  
+## 2                2   256 11.6  
+## 3                3    90  4.07 
+## 4                4    52  2.35 
+## 5                5    15  0.678
+## 6                6    12  0.542
+## 7                8     8  0.362</code></pre>
+<pre class="r"><code>## 92% of entities donate to only 1 single party</code></pre>
+</div>
+<div id="which-party-has-raised-the-greatest-amount-of-money-in-each-of-the-years-2020-2022" class="section level2">
+<h2>Which party has raised the greatest amount of money in each of the years 2020-2022?</h2>
+<pre class="r"><code> donations_per_year &lt;- minister_db$party_donations %&gt;% 
+  mutate(year_str = str_sub(date, end = 4)) %&gt;% 
+  filter(year_str %in% c(&#39;2020&#39;,&#39;2021&#39;,&#39;2022&#39;)) %&gt;% 
+  group_by(party_id, year_str) %&gt;% 
+  summarize(total_year_donations = sum(value))
+
+collect(donations_per_year) %&gt;% 
+  group_by(year_str) %&gt;%
+  arrange(desc(total_year_donations)) %&gt;%
+  slice(1)</code></pre>
+<pre><code>## `summarise()` has grouped output by &quot;party_id&quot;. You can override using the
+## `.groups` argument.</code></pre>
+<pre><code>## # A tibble: 3 × 3
+## # Groups:   year_str [3]
+##   party_id year_str total_year_donations
+##   &lt;chr&gt;    &lt;chr&gt;                   &lt;dbl&gt;
+## 1 p4       2020                42770782.
+## 2 p4       2021                17718212.
+## 3 p4       2022                15568476.</code></pre>
+<pre class="r"><code># P4 had the highest donations for each year</code></pre>
+<p>I would like you to write code that generates the following table.</p>
+<pre><code>## `summarise()` has grouped output by &quot;party_id&quot;. You can override using the
+## `.groups` argument.
+## `summarise()` has grouped output by &quot;party_id&quot;. You can override using the
+## `.groups` argument.</code></pre>
+<pre><code>## # A tibble: 28 × 6
+## # Groups:   party_id [10]
+##    party_id year_str total_year_donations all_party_donations    prop name      
+##    &lt;chr&gt;    &lt;chr&gt;                   &lt;dbl&gt;               &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;     
+##  1 p1       2020                  105000            69941125. 0.00150 Alliance  
+##  2 p1       2021                   42500            29834986. 0.00142 Alliance  
+##  3 p1       2022                  180600            27848092. 0.00649 Alliance  
+##  4 p1034    2021                   53559.           29834986. 0.00180 Alba Party
+##  5 p1034    2022                   50000            27848092. 0.00180 Alba Party
+##  6 p15      2020                13539803.           69941125. 0.194   Labour    
+##  7 p15      2021                 9493978.           29834986. 0.318   Labour    
+##  8 p15      2022                 9460879.           27848092. 0.340   Labour    
+##  9 p17      2020                12717295.           69941125. 0.182   Liberal D…
+## 10 p17      2021                  700398.           29834986. 0.0235  Liberal D…
+## # ℹ 18 more rows</code></pre>
+<p>… and then, based on this data, plot the following graph.</p>
+<p><img src="/assignments/homework3_files/figure-html/unnamed-chunk-10-1.png" width="80%" /></p>
+<p>Finally, when you are done working with the databse, make sure you close the connection, or disconnect from the database.</p>
+<pre class="r"><code>dbDisconnect(sky_westminster)</code></pre>
+</div>
+</div>
+<div id="anonymised-covid-patient-data-from-the-cdc" class="section level1">
+<h1>Anonymised Covid patient data from the CDC</h1>
+<p>We will be using a dataset with <a href="https://data.cdc.gov/Case-Surveillance/COVID-19-Case-Surveillance-Public-Use-Data-with-Ge/n8mc-b4w4">anonymous Covid-19 patient data that the CDC publishes every month</a>. The file we will use was released on April 11, 2023, and has data on 98 million of patients, with 19 features. This file cannot be loaded in memory, but luckily we have the data in <code>parquet</code> format and we will use the <code>{arrow}</code> package.</p>
+<div id="obtain-the-data" class="section level2">
+<h2>Obtain the data</h2>
+<p>The dataset <code>cdc-covid-geography</code> in in <code>parquet</code> format that {arrow}can handle. It is &gt; 600Mb and too large to be hosted on Canvas or Github, so please download it from dropbox <a href="https://www.dropbox.com/sh/q1yk8mmnbbrzavl/AAAxzRtIhag9Nc_hODafGV2ka?dl=0" class="uri">https://www.dropbox.com/sh/q1yk8mmnbbrzavl/AAAxzRtIhag9Nc_hODafGV2ka?dl=0</a> and save it in your <code>dsb</code> repo, under the <code>data</code> folder</p>
+<pre><code>## 0.08 sec elapsed</code></pre>
+<pre><code>## FileSystemDataset with 1 Parquet file
+## 97,799,772 rows x 19 columns
+## $ case_month                     &lt;string&gt; &quot;2021-09&quot;, &quot;2022-09&quot;, &quot;2022-01&quot;, &quot;2020…
+## $ res_state                      &lt;string&gt; &quot;TX&quot;, &quot;TX&quot;, &quot;TX&quot;, &quot;CA&quot;, &quot;IL&quot;, &quot;CA&quot;, &quot;N…
+## $ state_fips_code                 &lt;int32&gt; 48, 48, 48, 6, 17, 6, 36, 36, 36, 53, …
+## $ res_county                     &lt;string&gt; &quot;TARRANT&quot;, NA, &quot;HARRIS&quot;, &quot;SAN BERNARDI…
+## $ county_fips_code                &lt;int32&gt; 48439, NA, 48201, 6071, 17031, 6085, 3…
+## $ age_group                      &lt;string&gt; &quot;18 to 49 years&quot;, &quot;18 to 49 years&quot;, &quot;1…
+## $ sex                            &lt;string&gt; &quot;Male&quot;, &quot;Male&quot;, &quot;Female&quot;, &quot;Female&quot;, &quot;F…
+## $ race                           &lt;string&gt; &quot;White&quot;, &quot;White&quot;, &quot;Unknown&quot;, &quot;Asian&quot;, …
+## $ ethnicity                      &lt;string&gt; &quot;Non-Hispanic/Latino&quot;, &quot;Non-Hispanic/L…
+## $ case_positive_specimen_interval &lt;int32&gt; NA, NA, NA, NA, 0, NA, 0, 0, 0, 0, 0, …
+## $ case_onset_interval             &lt;int32&gt; NA, NA, -1, NA, 0, NA, NA, NA, NA, 0, …
+## $ process                        &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Missing&quot;, &quot;Miss…
+## $ exposure_yn                    &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Missing&quot;, &quot;Miss…
+## $ current_status                 &lt;string&gt; &quot;Laboratory-confirmed case&quot;, &quot;Probable…
+## $ symptom_status                 &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Symptomatic&quot;, &quot;…
+## $ hosp_yn                        &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;No&quot;, &quot;No&quot;, &quot;No&quot;…
+## $ icu_yn                         &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Missing&quot;, &quot;Miss…
+## $ death_yn                       &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Missing&quot;, &quot;Miss…
+## $ underlying_conditions_yn       &lt;string&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA…</code></pre>
+<p>Can you query the database and replicate the following plot?</p>
+<p><img src="../images/covid-CFR-ICU.png" width="100%" /></p>
+<p>The previous plot is an aggregate plot for all three years of data. What if we wanted to plot Case Fatality Ratio (CFR) over time? Write code that collects the relevant data from the database and plots the following</p>
+<p><img src="../images/cfr-ice-overtime.png" width="100%" /></p>
+<p>For each patient, the dataframe also lists the patient’s states and county <a href="https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code">FIPS code</a>. The CDC also has information on the <a href="https://www.cdc.gov/nchs/data_access/urban_rural.htm">NCHS Urban-Rural classification scheme for counties</a></p>
+<pre class="r"><code>urban_rural &lt;- read_xlsx(here::here(&quot;content/data&quot;, &quot;NCHSURCodes2013.xlsx&quot;)) %&gt;% 
+  janitor::clean_names()</code></pre>
+<p>Each county belongs in six different categories, with categories 1-4 being urban areas and categories 5-6 being rural, according to the following criteria captured in <code>x2013_code</code></p>
+<p>Category name</p>
+<ol style="list-style-type: decimal">
+<li>Large central metro - 1 million or more population and contains the entire population of the largest principal city</li>
+<li>large fringe metro - 1 million or more poulation, but does not qualify as 1</li>
+<li>Medium metro - 250K - 1 million population</li>
+<li>Small metropolitan population &lt; 250K</li>
+<li>Micropolitan</li>
+<li>Noncore</li>
+</ol>
+<p>Can you query the database, extract the relevant information, and reproduce the following two graphs that look at the Case Fatality ratio (CFR) in different counties, according to their population?</p>
+<p><img src="../images/cfr-county-population.png" width="100%" /></p>
+<p><img src="../images/cfr-rural-urban.png" width="100%" /></p>
+</div>
+</div>
+<div id="money-in-us-politics" class="section level1">
+<h1>Money in US politics</h1>
+<p>In the United States, <a href="https://www.opensecrets.org/political-action-committees-pacs/foreign-connected-pacs"><em>“only American citizens (and immigrants with green cards) can contribute to federal politics, but the American divisions of foreign companies can form political action committees (PACs) and collect contributions from their American employees.”</em></a></p>
+<p>We will scrape and work with data foreign connected PACs that donate to US political campaigns. The data for foreign connected PAC contributions in the 2022 election cycle can be found at <a href="https://www.opensecrets.org/political-action-committees-pacs/foreign-connected-pacs/2022" class="uri">https://www.opensecrets.org/political-action-committees-pacs/foreign-connected-pacs/2022</a>. Then, we will use a similar approach to get data such contributions from previous years so that we can examine trends over time.</p>
+<p>All data come from <a href="https://www.opensecrets.org">OpenSecrets.org</a>, a <em>“website tracking the influence of money on U.S. politics, and how that money affects policy and citizens’ lives”</em>.</p>
+<pre class="r"><code>library(robotstxt)
+paths_allowed(&quot;https://www.opensecrets.org&quot;)</code></pre>
+<pre><code>## [1] TRUE</code></pre>
+<pre class="r"><code>base_url &lt;- &quot;https://www.opensecrets.org/political-action-committees-pacs/foreign-connected-pacs/2022&quot;
+
+contributions_tables &lt;- base_url %&gt;%
+  read_html() 
+
+contributions &lt;- contributions_tables %&gt;% 
+  html_element(&quot;.DataTable-Partial&quot;) %&gt;% ## select table element
+  html_table()</code></pre>
+<ul>
+<li><p>First, make sure you can scrape the data for 2022. Use janitor::clean_names() to rename variables scraped using <code>snake_case</code> naming.</p></li>
+<li><p>Clean the data:</p>
+<ul>
+<li>Write a function that converts contribution amounts in <code>total</code>, <code>dems</code>, and <code>repubs</code> from character strings to numeric values.</li>
+<li>Separate the <code>country_of_origin_parent_company</code> into two such that country and parent company appear in different columns for country-level analysis.</li>
+</ul></li>
+</ul>
+<pre class="r"><code># write a function to parse_currency
+parse_currency &lt;- function(x){
+  x %&gt;%
+    
+    # remove dollar signs
+    str_remove(&quot;\\$&quot;) %&gt;%
+    
+    # remove all occurrences of commas
+    str_remove_all(&quot;,&quot;) %&gt;%
+    
+    # convert to numeric
+    as.numeric()
+}
+
+# clean country/parent co and contributions 
+contributions &lt;- contributions %&gt;%
+  janitor::clean_names() %&gt;% 
+  separate(country_of_origin_parent_company, 
+           into = c(&quot;country&quot;, &quot;parent&quot;), 
+           sep = &quot;/&quot;, 
+           extra = &quot;merge&quot;) %&gt;%
+  mutate(
+    total = parse_currency(total),
+    dems = parse_currency(dems),
+    repubs = parse_currency(repubs)
+  )
+
+print(contributions)</code></pre>
+<ul>
+<li><p>Write a function called <code>scrape_pac()</code> that scrapes information from the Open Secrets webpage for foreign-connected PAC contributions in a given year. This function should</p>
+<ul>
+<li>have one input: the URL of the webpage and should return a data frame.</li>
+<li>add a new column to the data frame for <code>year</code>. We will want this information when we ultimately have data from all years, so this is a good time to keep track of it. Our function doesn’t take a year argument, but the year is embedded in the URL, so we can extract it out of there, and add it as a new column. Use the <code>str_sub()</code> function to extract the last 4 characters from the URL. You will probably want to look at the help for this function to figure out how to specify “last 4 characters”.</li>
+</ul></li>
+</ul>
+<pre class="r"><code># write a function to parse_currency
+scrape_pac &lt;- function(url){
+  year &lt;- substr(url, start = nchar(url) - 4 + 1, stop = nchar(url))
+  contributions_tables &lt;- url %&gt;%
+    read_html() 
+  
+  contributions &lt;- contributions_tables %&gt;% 
+    html_element(&quot;.DataTable-Partial&quot;) %&gt;% ## select table element
+    html_table()
+  
+    # clean country/parent co and contributions 
+  contributions &lt;- contributions %&gt;%
+    janitor::clean_names() %&gt;% 
+    separate(country_of_origin_parent_company, 
+             into = c(&quot;country&quot;, &quot;parent&quot;), 
+             sep = &quot;/&quot;, 
+             extra = &quot;merge&quot;) %&gt;%
+    mutate(
+      total = parse_currency(total),
+      dems = parse_currency(dems),
+      repubs = parse_currency(repubs),
+      year = as.numeric(year)
+      
+    )
+  
+  contributions
+}</code></pre>
+<ul>
+<li>Define the URLs for 2022, 2020, and 2000 contributions. Then, test your function using these URLs as inputs. Does the function seem to do what you expected it to do?</li>
+</ul>
+<pre class="r"><code>stub_url &lt;- &quot;https://www.opensecrets.org/political-action-committees-pacs/foreign-connected-pacs/&quot;
+
+url_lst &lt;- lapply(c(&quot;2000&quot;,&quot;2020&quot;,&quot;2022&quot;), function(a) paste0(stub_url,a))
+
+output_list &lt;- lapply(url_lst, scrape_pac)
+
+print(output_list)
+# Ouput Does seem as expected</code></pre>
+<ul>
+<li><p>Construct a vector called <code>urls</code> that contains the URLs for each webpage that contains information on foreign-connected PAC contributions for a given year.</p></li>
+<li><p>Map the <code>scrape_pac()</code> function over <code>urls</code> in a way that will result in a data frame called <code>contributions_all</code>.</p></li>
+<li><p>Write the data frame to a csv file called <code>contributions-all.csv</code> in the <code>data</code> folder.</p></li>
+</ul>
+<pre class="r"><code>years &lt;- seq(2000, 2022, by = 2)
+
+urls &lt;- lapply(years, function(a) paste0(stub_url,a))
+
+contributions_all &lt;- bind_rows(lapply(urls, scrape_pac))
+
+print(contributions_all %&gt;%  head(5))
+
+# Dump to CSV
+write.csv(contributions_all, file = here::here(&quot;content/data&quot;, &quot;contributions-all.csv&quot;), row.names = FALSE)</code></pre>
+</div>
+<div id="scraping-consulting-jobs" class="section level1">
+<h1>Scraping consulting jobs</h1>
+<p>The website <a href="https://www.consultancy.uk/jobs">https://www.consultancy.uk/jobs/</a> lists job openings for consulting jobs.</p>
+<pre class="r"><code>library(robotstxt)
+paths_allowed(&quot;https://www.consultancy.uk&quot;) #is it ok to scrape?
+
+base_url &lt;- &quot;https://www.consultancy.uk/jobs/page/1&quot;
+
+listings_html &lt;- base_url %&gt;%
+  read_html()</code></pre>
+<p>Identify the CSS selectors in order to extract the relevant information from this page, namely</p>
+<ol style="list-style-type: decimal">
+<li>job #dataTable &gt; tbody &gt; tr:nth-child(2) &gt; td:nth-child(1) &gt; a &gt; span.title</li>
+<li>firm #dataTable &gt; tbody &gt; tr:nth-child(2) &gt; td.hide-phone &gt; a</li>
+<li>functional area #dataTable &gt; tbody &gt; tr:nth-child(2) &gt; td.hide-tablet-and-less</li>
+<li>type #dataTable &gt; tbody &gt; tr:nth-child(2) &gt; td.hide-tablet-landscape</li>
+</ol>
+<p>Can you get all pages of ads, and not just the first one, <code>https://www.consultancy.uk/jobs/page/1</code> into a dataframe?</p>
+<pre class="r"><code>library(robotstxt)
+paths_allowed(&quot;https://www.consultancy.uk&quot;) #is it ok to scrape?
+
+
+listings_tbl &lt;- listings_html %&gt;% 
+  html_element(&quot;.dataTable&quot;) %&gt;% ## select table element
+  html_table()
+
+
+cons_url &lt;- &quot;https://www.consultancy.uk/jobs/page/&quot;
+htmls &lt;- list()
+i &lt;- 1  # Initial value
+error &lt;- FALSE
+
+while (!error) {
+  # Check for an error condition
+  print(i)
+  tryCatch({
+      # Code to be executed if no error condition
+    url &lt;- paste0(cons_url,i)
+    print(url)
+    listings_html &lt;- 
+      paste0(cons_url,i) %&gt;%
+      read_html()
+    
+    htmls &lt;&lt;- c(htmls, listings_html)
+
+  }, error = function(err) {
+     print(&quot;Error&quot;) 
+     error &lt;&lt;- TRUE
+  })
+    
+  # Update the loop variable
+  i &lt;- i + 1
+}</code></pre>
+<ul>
+<li><p>Write a function called <code>scrape_jobs()</code> that scrapes information from the webpage for consulting positions. This function should</p>
+<ul>
+<li><p>have one input: the URL of the webpage and should return a data frame with four columns (variables): job, firm, functional area, and type</p></li>
+<li><p>Test your function works with other pages too, e.g., <a href="https://www.consultancy.uk/jobs/page/2" class="uri">https://www.consultancy.uk/jobs/page/2</a>. Does the function seem to do what you expected it to do?</p></li>
+<li><p>Given that you have to scrape <code>...jobs/page/1</code>, <code>...jobs/page/2</code>, etc., define your URL so you can join multiple stings into one string, using <code>str_c()</code>. For instnace, if <code>page</code> is 5, what do you expect the following code to produce?</p></li>
+</ul></li>
+<li><p>Construct a vector called <code>pages</code> that contains the numbers for each page available</p></li>
+<li><p>Map the <code>scrape_jobs()</code> function over <code>pages</code> in a way that will result in a data frame called <code>all_consulting_jobs</code>.</p></li>
+<li><p>Write the data frame to a csv file called <code>all_consulting_jobs.csv</code> in the <code>data</code> folder.</p></li>
+</ul>
+<pre class="r"><code># write a function to parse_currency
+
+scrape_job &lt;- function(url){
+  print(url)
+  listings_html &lt;- 
+    url %&gt;%
+    read_html()
+  
+  listings_tbl &lt;- listings_html %&gt;% 
+    html_element(&quot;.dataTable&quot;) %&gt;% ## select table element
+    html_table()
+
+  # clean country/parent co and contributions 
+  listings_tbl &lt;- listings_tbl %&gt;%
+    janitor::clean_names()
+  listings_tbl
+}
+
+scrape_jobs &lt;- function(base_url){
+  error &lt;- FALSE
+  df_list &lt;- list()
+  i &lt;- 1  # Initial value
+
+  while (!error) {
+  # Check for an error condition
+  print(i)
+  tryCatch({
+    # Code to be executed if no error condition
+    cons_url &lt;- paste0(base_url,i)
+    listings_tbl &lt;- scrape_job(cons_url)
+    
+    df_list &lt;- append(df_list, list(listings_tbl))
+
+
+  }, error = function(err) {
+     message(&quot;Error:&quot;, conditionMessage(err))
+     print(&quot;Error&quot;) 
+     error &lt;&lt;- TRUE
+  })
+    # Update the loop variable
+    i &lt;- i + 1
+  }
+
+  final_df &lt;- bind_rows(df_list)
+  print(final_df)
+}
+  
+all_jobs &lt;- scrape_jobs(&quot;https://www.consultancy.uk/jobs/page/&quot;)
+  
+print(all_jobs %&gt;%  head(5))
+
+# Dump to CSV
+write.csv(all_jobs, file = here::here(&quot;content/data&quot;, &quot;all_consulting_jobs.csv&quot;), row.names = FALSE)</code></pre>
+</div>
+<div id="details" class="section level1">
+<h1>Details</h1>
+<ul>
+<li>Approximately how much time did you spend on this problem set: 8+ Hours</li>
+<li>What, if anything, gave you the most trouble: Long loading time for cdc data, scraping errors, getting charts to look right</li>
+</ul>
+</div>
