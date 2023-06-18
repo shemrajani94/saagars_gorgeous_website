@@ -192,7 +192,7 @@ collect(donations_per_year) %&gt;%
 <div id="obtain-the-data" class="section level2">
 <h2>Obtain the data</h2>
 <p>The dataset <code>cdc-covid-geography</code> in in <code>parquet</code> format that {arrow}can handle. It is &gt; 600Mb and too large to be hosted on Canvas or Github, so please download it from dropbox <a href="https://www.dropbox.com/sh/q1yk8mmnbbrzavl/AAAxzRtIhag9Nc_hODafGV2ka?dl=0" class="uri">https://www.dropbox.com/sh/q1yk8mmnbbrzavl/AAAxzRtIhag9Nc_hODafGV2ka?dl=0</a> and save it in your <code>dsb</code> repo, under the <code>data</code> folder</p>
-<pre><code>## 0.08 sec elapsed</code></pre>
+<pre><code>## 0.05 sec elapsed</code></pre>
 <pre><code>## FileSystemDataset with 1 Parquet file
 ## 97,799,772 rows x 19 columns
 ## $ case_month                     &lt;string&gt; &quot;2021-09&quot;, &quot;2022-09&quot;, &quot;2022-01&quot;, &quot;2020…
@@ -215,9 +215,9 @@ collect(donations_per_year) %&gt;%
 ## $ death_yn                       &lt;string&gt; &quot;Missing&quot;, &quot;Missing&quot;, &quot;Missing&quot;, &quot;Miss…
 ## $ underlying_conditions_yn       &lt;string&gt; NA, NA, NA, NA, NA, NA, NA, NA, NA, NA…</code></pre>
 <p>Can you query the database and replicate the following plot?</p>
-<p><img src="../images/covid-CFR-ICU.png" width="100%" /></p>
+<p><img src="../../images/covid-CFR-ICU.png" width="100%" /></p>
 <p>The previous plot is an aggregate plot for all three years of data. What if we wanted to plot Case Fatality Ratio (CFR) over time? Write code that collects the relevant data from the database and plots the following</p>
-<p><img src="../images/cfr-ice-overtime.png" width="100%" /></p>
+<p><img src="../../images/cfr-ice-overtime.png" width="100%" /></p>
 <p>For each patient, the dataframe also lists the patient’s states and county <a href="https://en.wikipedia.org/wiki/Federal_Information_Processing_Standard_state_code">FIPS code</a>. The CDC also has information on the <a href="https://www.cdc.gov/nchs/data_access/urban_rural.htm">NCHS Urban-Rural classification scheme for counties</a></p>
 <pre class="r"><code>urban_rural &lt;- read_xlsx(here::here(&quot;content/data&quot;, &quot;NCHSURCodes2013.xlsx&quot;)) %&gt;% 
   janitor::clean_names()</code></pre>
@@ -232,8 +232,8 @@ collect(donations_per_year) %&gt;%
 <li>Noncore</li>
 </ol>
 <p>Can you query the database, extract the relevant information, and reproduce the following two graphs that look at the Case Fatality ratio (CFR) in different counties, according to their population?</p>
-<p><img src="../images/cfr-county-population.png" width="100%" /></p>
-<p><img src="../images/cfr-rural-urban.png" width="100%" /></p>
+<p><img src="../../images/cfr-county-population.png" width="100%" /></p>
+<p><img src="../../images/cfr-rural-urban.png" width="100%" /></p>
 </div>
 </div>
 <div id="money-in-us-politics" class="section level1">
