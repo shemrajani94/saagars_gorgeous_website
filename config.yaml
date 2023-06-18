@@ -25,7 +25,7 @@ params:
         title: Email
     enable: yes
     phone:
-      - phone: +44 7521332252
+      - phone: +44 7561338651
         title: Phone
   custom_css: []
   custom_js: []
@@ -86,7 +86,7 @@ params:
    #      title: Homework 1
    #      url: assignments/hw1
        - image: massshootings.jpg
-         subtitle: Mass shootings & credit card fraud
+         subtitle: Mass shootings & credit card frauds
          title: Homework 2
          url: assignments/hw2
        - image: webscraping.jpg
